@@ -2,6 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 import streamlit as st
+from urllib.parse import urljoin, urlparse
 
 # List of keywords to search for
 keywords = [
@@ -37,39 +38,69 @@ def get_website_text(url):
     except requests.exceptions.RequestException as e:
         return f"Error fetching the webpage: {e}"
 
+def find_subpages(base_url):
+    """Finds all internal subpage links from a given webpage."""
+    try:
+        response = requests.get(base_url, timeout=10)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        base_domain = urlparse(base_url).netloc
+        subpages = set()
+        
+        for link in soup.find_all("a", href=True):
+            href = link["href"]
+            full_url = urljoin(base_url, href)
+            if urlparse(full_url).netloc == base_domain and full_url.startswith(base_url):
+                subpages.add(full_url)
+        
+        return list(subpages)
+    except requests.exceptions.RequestException as e:
+        return []
+
 def count_keywords(text, keywords):
     """Counts the frequency of given keywords in the text."""
     keyword_counts = {keyword: text.count(keyword) for keyword in keywords}
     return {k: v for k, v in keyword_counts.items() if v > 0}  # Filter out keywords not found
 
 # Streamlit App
-st.title("Website Keyword Scanner")
-st.write("Enter a website URL to scan for specific keywords and analyze their frequency.")
+st.title("Website Keyword Scanner (Multi-Page)")
+st.write("Enter a website URL to scan all its subpages for specific keywords.")
 
 url = st.text_input("Enter website URL")
-if st.button("Scan Website"):
+if st.button("Scan Website and Subpages"):
     if url:
-        website_text = get_website_text(url)
-        if "Error" in website_text:
-            st.error(website_text)
-        else:
-            keyword_frequencies = count_keywords(website_text, keywords)
-            df = pd.DataFrame(keyword_frequencies.items(), columns=["Keyword", "Frequency"])
-            df = df.sort_values(by="Frequency", ascending=False)
-            
-            if df.empty:
-                st.warning("No keywords found on the webpage.")
+        subpages = find_subpages(url)
+        st.write(f"Found {len(subpages)} subpages. Scanning now...")
+        
+        all_results = []
+        
+        for page in subpages:
+            st.write(f"Scanning: {page}")
+            website_text = get_website_text(page)
+            if "Error" in website_text:
+                st.warning(f"Skipping {page} due to an error.")
             else:
-                st.write("### Keyword Frequency Report:")
-                st.dataframe(df)
-                
-                # Create a download button for the report
-                csv = df.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    label="Download Report as CSV",
-                    data=csv,
-                    file_name="keyword_report.csv",
-                    mime="text/csv"
-                )
+                keyword_frequencies = count_keywords(website_text, keywords)
+                for keyword, count in keyword_frequencies.items():
+                    all_results.append([page, keyword, count])
+        
+        df = pd.DataFrame(all_results, columns=["Page URL", "Keyword", "Frequency"])
+        df = df.sort_values(by=["Page URL", "Frequency"], ascending=[True, False])
+        
+        if df.empty:
+            st.warning("No keywords found across subpages.")
+        else:
+            st.write("### Keyword Frequency Report by Subpage:")
+            st.dataframe(df)
+            
+            # Create a download button for the report
+            csv = df.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="Download Full Report as CSV",
+                data=csv,
+                file_name="keyword_report.csv",
+                mime="text/csv"
+            )
     else:
         st.warning("Please enter a valid URL.")
