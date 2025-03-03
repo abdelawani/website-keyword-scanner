@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup
 import pandas as pd
 import streamlit as st
 from urllib.parse import urljoin, urlparse
+import re
 
 # List of keywords to search for
 keywords = [
@@ -34,9 +35,9 @@ def get_website_text(url):
         response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
         text = soup.get_text(" ")  # Extracting text content
-        return text.lower()  # Convert text to lowercase for case-insensitive matching
+        return text.lower(), soup  # Convert text to lowercase for case-insensitive matching
     except requests.exceptions.RequestException as e:
-        return f"Error fetching the webpage: {e}"
+        return f"Error fetching the webpage: {e}", None
 
 def find_subpages(base_url):
     """Finds all internal subpage links from a given webpage."""
@@ -58,10 +59,39 @@ def find_subpages(base_url):
     except requests.exceptions.RequestException as e:
         return []
 
-def count_keywords(text, keywords):
-    """Counts the frequency of given keywords in the text."""
-    keyword_counts = {keyword: text.count(keyword) for keyword in keywords}
-    return {k: v for k, v in keyword_counts.items() if v > 0}  # Filter out keywords not found
+def find_keyword_context(text, keyword):
+    """Finds snippets of text where a keyword appears."""
+    matches = []
+    for match in re.finditer(rf'\b{keyword}\b', text, re.IGNORECASE):
+        start = max(match.start() - 50, 0)
+        end = min(match.end() + 50, len(text))
+        snippet = text[start:end]
+        matches.append(snippet)
+    return matches
+
+def generate_html_report(results):
+    """Generates an HTML report highlighting keyword occurrences."""
+    html_content = """<html><head><title>Keyword Analysis Report</title>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        h2 { color: #333; }
+        .result { margin-bottom: 20px; padding: 10px; border: 1px solid #ddd; }
+        .keyword { font-weight: bold; color: red; }
+        .snippet { background-color: #f9f9f9; padding: 5px; }
+    </style>
+    </head><body>
+    <h1>Keyword Analysis Report</h1>
+    """
+    
+    for page, keyword, snippets in results:
+        html_content += f'<div class="result"><h2><a href="{page}" target="_blank">{page}</a></h2>'
+        html_content += f'<p><span class="keyword">Keyword:</span> {keyword}</p>'
+        for snippet in snippets:
+            html_content += f'<p class="snippet">... {snippet} ...</p>'
+        html_content += "</div>"
+    
+    html_content += "</body></html>"
+    return html_content
 
 # Streamlit App
 st.title("Website Keyword Scanner (Multi-Page)")
@@ -77,30 +107,30 @@ if st.button("Scan Website and Subpages"):
         
         for page in subpages:
             st.write(f"Scanning: {page}")
-            website_text = get_website_text(page)
+            website_text, soup = get_website_text(page)
             if "Error" in website_text:
                 st.warning(f"Skipping {page} due to an error.")
             else:
-                keyword_frequencies = count_keywords(website_text, keywords)
-                for keyword, count in keyword_frequencies.items():
-                    all_results.append([page, keyword, count])
+                for keyword in keywords:
+                    snippets = find_keyword_context(website_text, keyword)
+                    if snippets:
+                        all_results.append((page, keyword, snippets))
         
-        df = pd.DataFrame(all_results, columns=["Page URL", "Keyword", "Frequency"])
-        df = df.sort_values(by=["Page URL", "Frequency"], ascending=[True, False])
-        
-        if df.empty:
+        if not all_results:
             st.warning("No keywords found across subpages.")
         else:
-            st.write("### Keyword Frequency Report by Subpage:")
-            st.dataframe(df)
+            st.success("Analysis complete. Generating report...")
+            html_report = generate_html_report(all_results)
             
-            # Create a download button for the report
-            csv = df.to_csv(index=False).encode('utf-8')
+            # Save the report to a file
+            with open("keyword_report.html", "w", encoding="utf-8") as file:
+                file.write(html_report)
+            
             st.download_button(
-                label="Download Full Report as CSV",
-                data=csv,
-                file_name="keyword_report.csv",
-                mime="text/csv"
+                label="Download HTML Report",
+                data=html_report,
+                file_name="keyword_report.html",
+                mime="text/html"
             )
     else:
         st.warning("Please enter a valid URL.")
