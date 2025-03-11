@@ -73,19 +73,21 @@ def generate_html_report(results):
 # Streamlit App
 st.title("Website Keyword Scanner (Custom Keywords)")
 st.write("Enter a website URL and specify keywords to scan all subpages for occurrences.")
-st.write("You have Questions? Please contact Dr. Abdelaziz Lawani at alawani@tnstate.edu")
 
 url = st.text_input("Enter website URL")
 keywords_input = st.text_area("Enter keywords (separate by commas)")
 
 if st.button("Scan Website and Subpages"):
     if url and keywords_input:
-        keywords = [kw.strip() for kw in keywords_input.split(",") if kw.strip()]
+        raw_keywords = [kw.strip() for kw in keywords_input.split(",") if kw.strip()]
+        valid_keywords = [kw for kw in raw_keywords if re.match(r'^[a-zA-Z]+$', kw)]
+        excluded_keywords = list(set(raw_keywords) - set(valid_keywords))
+        
         subpages = find_subpages(url)
         st.write(f"Found {len(subpages)} subpages. Scanning now...")
         
         all_results = []
-        keyword_counts = {kw: 0 for kw in keywords}
+        keyword_counts = {kw: 0 for kw in valid_keywords}
         
         for page in subpages:
             st.write(f"Scanning: {page}")
@@ -93,7 +95,7 @@ if st.button("Scan Website and Subpages"):
             if "Error" in website_text:
                 st.warning(f"Skipping {page} due to an error.")
             else:
-                for keyword in keywords:
+                for keyword in valid_keywords:
                     snippets = find_keyword_context(website_text, keyword)
                     if snippets:
                         keyword_counts[keyword] += len(snippets)
@@ -108,6 +110,10 @@ if st.button("Scan Website and Subpages"):
             st.write("### Keyword Frequency Report:")
             st.dataframe(df)
             
+            if excluded_keywords:
+                st.write("### Excluded Keywords:")
+                st.write(", ".join(excluded_keywords))
+            
             # Generate and save HTML report
             html_report = generate_html_report(all_results)
             with open("keyword_report.html", "w", encoding="utf-8") as file:
@@ -121,3 +127,5 @@ if st.button("Scan Website and Subpages"):
             )
     else:
         st.warning("Please enter a valid URL and at least one keyword.")
+
+st.write("\n\nYou have Questions? Please contact **Dr. Abdelaziz Lawani** at **alawani@tnstate.edu**")
