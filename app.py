@@ -73,6 +73,7 @@ def generate_html_report(results):
 # Streamlit App
 st.title("Website Keyword Scanner (Custom Keywords)")
 st.write("Enter a website URL and specify keywords to scan all subpages for occurrences.")
+st.write("You have Questions? Please contact Dr. Abdelaziz Lawani at alawani@tnstate.edu")
 
 url = st.text_input("Enter website URL")
 keywords_input = st.text_area("Enter keywords (separate by commas)")
