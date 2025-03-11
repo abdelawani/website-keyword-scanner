@@ -4,6 +4,7 @@ import pandas as pd
 import streamlit as st
 from urllib.parse import urljoin, urlparse
 import re
+import time
 
 def get_website_text(url):
     """Fetches and extracts text from a given website URL."""
@@ -46,7 +47,7 @@ def find_keyword_context(text, keyword):
         matches.append(snippet)
     return matches
 
-def generate_html_report(results):
+def generate_html_report(results, keyword_counts):
     """Generates an HTML report highlighting keyword occurrences."""
     html_content = """<html><head><title>Keyword Analysis Report</title>
     <style>
@@ -58,7 +59,13 @@ def generate_html_report(results):
     </style>
     </head><body>
     <h1>Keyword Analysis Report</h1>
+    <h2>Keyword Scan Summary</h2>
+    <ul>
     """
+    for keyword, count in keyword_counts.items():
+        html_content += f'<li><b>{keyword}</b>: {count} occurrences</li>'
+    
+    html_content += "</ul>"
     
     for page, keyword, snippets in results:
         html_content += f'<div class="result"><h2><a href="{page}" target="_blank">{page}</a></h2>'
@@ -84,12 +91,14 @@ if st.button("Scan Website and Subpages"):
         excluded_keywords = list(set(raw_keywords) - set(valid_keywords))
         
         subpages = find_subpages(url)
-        st.write(f"Found {len(subpages)} subpages. Scanning now...")
+        total_subpages = len(subpages)
+        st.write(f"Found {total_subpages} subpages. Scanning now...")
         
+        progress_bar = st.progress(0)
         all_results = []
         keyword_counts = {kw: 0 for kw in valid_keywords}
         
-        for page in subpages:
+        for index, page in enumerate(subpages):
             st.write(f"Scanning: {page}")
             website_text, soup = get_website_text(page)
             if "Error" in website_text:
@@ -100,6 +109,9 @@ if st.button("Scan Website and Subpages"):
                     if snippets:
                         keyword_counts[keyword] += len(snippets)
                         all_results.append((page, keyword, snippets))
+            
+            progress_bar.progress((index + 1) / total_subpages)
+            time.sleep(0.5)
         
         df = pd.DataFrame(keyword_counts.items(), columns=["Keyword", "Frequency"])
         df = df.sort_values(by="Frequency", ascending=False)
@@ -115,7 +127,7 @@ if st.button("Scan Website and Subpages"):
                 st.write(", ".join(excluded_keywords))
             
             # Generate and save HTML report
-            html_report = generate_html_report(all_results)
+            html_report = generate_html_report(all_results, keyword_counts)
             with open("keyword_report.html", "w", encoding="utf-8") as file:
                 file.write(html_report)
             
