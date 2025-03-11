@@ -5,29 +5,6 @@ import streamlit as st
 from urllib.parse import urljoin, urlparse
 import re
 
-# List of keywords to search for
-keywords = [
-    "activism", "activists", "advocacy", "advocate", "advocates", "barrier", "barriers",
-    "bias", "biased", "biases", "bipoc", "black", "latinx", "community diversity",
-    "community equity", "cultural differences", "cultural heritage", "culturally responsive",
-    "disabilities", "disability", "discriminated", "discrimination", "discriminatory",
-    "diverse backgrounds", "diverse communities", "diverse community", "diverse group",
-    "diverse groups", "diversified", "diversify", "diversifying", "diversity", "diversity and inclusion",
-    "diversity equity", "enhance the diversity", "enhancing diversity", "equal opportunity",
-    "equality", "equitable", "equity", "ethnicity", "excluded", "female", "fostering inclusivity",
-    "gender", "gender diversity", "genders", "hate speech", "hispanic minority", "historically",
-    "implicit bias", "implicit biases", "inclusion", "inclusive", "inclusiveness", "inclusivity",
-    "increase diversity", "increase the diversity", "indigenous community", "inequalities",
-    "inequality", "inequitable", "institutional", "lgbt", "marginalize", "marginalized",
-    "minorities", "minority", "multicultural", "polarization", "political", "prejudice", "privileges",
-    "promoting diversity", "race and ethnicity", "racial", "racial diversity", "racial inequality",
-    "racial justice", "racially", "racism", "sense of belonging", "sexual preferences",
-    "social justice", "socio-cultural", "socio-economic", "sociocultural", "socioeconomic",
-    "status", "stereotypes", "systemic", "trauma", "under-appreciated", "under-represented",
-    "under-served", "underrepresentation", "underrepresented", "underserved", "undervalued",
-    "victim", "women", "women and underrepresented"
-]
-
 def get_website_text(url):
     """Fetches and extracts text from a given website URL."""
     try:
@@ -94,17 +71,20 @@ def generate_html_report(results):
     return html_content
 
 # Streamlit App
-st.title("Website Keyword Scanner")
-st.write("Enter a website URL to scan all its subpages for specific keywords.")
-st.write("You have comments? Please direct them to Dr. Abdelaziz Lawani at alawani@tnstate.edu")
+st.title("Website Keyword Scanner (Custom Keywords)")
+st.write("Enter a website URL and specify keywords to scan all subpages for occurrences.")
 
 url = st.text_input("Enter website URL")
+keywords_input = st.text_area("Enter keywords (separate by commas)")
+
 if st.button("Scan Website and Subpages"):
-    if url:
+    if url and keywords_input:
+        keywords = [kw.strip() for kw in keywords_input.split(",") if kw.strip()]
         subpages = find_subpages(url)
         st.write(f"Found {len(subpages)} subpages. Scanning now...")
         
         all_results = []
+        keyword_counts = {kw: 0 for kw in keywords}
         
         for page in subpages:
             st.write(f"Scanning: {page}")
@@ -115,15 +95,20 @@ if st.button("Scan Website and Subpages"):
                 for keyword in keywords:
                     snippets = find_keyword_context(website_text, keyword)
                     if snippets:
+                        keyword_counts[keyword] += len(snippets)
                         all_results.append((page, keyword, snippets))
         
-        if not all_results:
+        df = pd.DataFrame(keyword_counts.items(), columns=["Keyword", "Frequency"])
+        df = df.sort_values(by="Frequency", ascending=False)
+        
+        if df.empty:
             st.warning("No keywords found across subpages.")
         else:
-            st.success("Analysis complete. Generating report...")
-            html_report = generate_html_report(all_results)
+            st.write("### Keyword Frequency Report:")
+            st.dataframe(df)
             
-            # Save the report to a file
+            # Generate and save HTML report
+            html_report = generate_html_report(all_results)
             with open("keyword_report.html", "w", encoding="utf-8") as file:
                 file.write(html_report)
             
@@ -134,4 +119,4 @@ if st.button("Scan Website and Subpages"):
                 mime="text/html"
             )
     else:
-        st.warning("Please enter a valid URL.")
+        st.warning("Please enter a valid URL and at least one keyword.")
