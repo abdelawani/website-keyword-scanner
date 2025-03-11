@@ -71,7 +71,7 @@ def generate_html_report(results):
     return html_content
 
 # Streamlit App
-st.title("Website Keyword Scanner")
+st.title("Website Keyword Scanner App")
 st.write("Enter a website URL and specify keywords to scan all subpages for occurrences.")
 st.write("\n\nYou have Questions? Please contact **Dr. Abdelaziz Lawani** at **alawani@tnstate.edu**")
 
