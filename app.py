@@ -94,8 +94,9 @@ def generate_html_report(results):
     return html_content
 
 # Streamlit App
-st.title("Website Keyword Scanner (Multi-Page)")
+st.title("Website Keyword Scanner")
 st.write("Enter a website URL to scan all its subpages for specific keywords.")
+st.write("You have comments? Please direct them to Dr. Abdelaziz Lawani at alawani@tnstate.edu")
 
 url = st.text_input("Enter website URL")
 if st.button("Scan Website and Subpages"):
